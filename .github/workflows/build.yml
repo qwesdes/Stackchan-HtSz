@@ -4,18 +4,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Setup ESP-IDF
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.5
-          target: esp32s3
-          path: .
-          command: idf.py build
+      - name: Build
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          idf.py build
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
