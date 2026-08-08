@@ -29,6 +29,8 @@ class DeviceSession:
         self.audio_buffer = bytearray()
         self.is_listening = False
         self.conversation_history = []
+        self.last_audio_time = 0
+        self._silence_task = None
     
     async def handle_hello(self, msg):
         """Handle hello handshake from device"""
