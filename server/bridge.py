@@ -4,8 +4,8 @@ Receives audio from device, transcribes it, sends to AI, returns TTS audio.
 """
 import asyncio
 import json
-import struct
 import os
+import time
 import aiohttp
 from aiohttp import web
 import logging
@@ -14,11 +14,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('bridge')
 
 # Configuration
-API_URL = os.getenv('API_URL', 'https://your-api-endpoint.com/v1/chat/completions')
+API_URL = os.getenv('API_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
 API_KEY = os.getenv('API_KEY', 'sk-your-key')
-TTS_URL = os.getenv('TTS_URL', 'https://your-tts-endpoint.com/v1/audio/speech')
-STT_URL = os.getenv('STT_URL', 'https://your-stt-endpoint.com/v1/audio/transcriptions')
+STT_URL = os.getenv('STT_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1/audio/transcriptions')
 SYSTEM_PROMPT = os.getenv('SYSTEM_PROMPT', 'You are a helpful assistant.')
+MODEL = os.getenv('MODEL', 'qwen-plus')
 SAMPLE_RATE = 16000
 OUTPUT_SAMPLE_RATE = 24000
 
