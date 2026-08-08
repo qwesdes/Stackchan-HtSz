@@ -15,8 +15,12 @@ I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr) {
             .disable_ack_check = 0,
         },
     };
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus, &i2c_device_cfg, &i2c_device_));
-    assert(i2c_device_ != NULL);
+    esp_err_t ret = i2c_master_bus_add_device(i2c_bus, &i2c_device_cfg, &i2c_device_);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "I2C device add failed (addr=0x%02X): %s", addr, esp_err_to_name(ret));
+        i2c_device_ = NULL;
+        return;
+    }
 }
 
 void I2cDevice::WriteReg(uint8_t reg, uint8_t value) {
