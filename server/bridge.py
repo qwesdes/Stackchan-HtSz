@@ -59,17 +59,30 @@ class DeviceSession:
         
         if msg_type == 'hello':
             await self.handle_hello(msg)
-        elif msg_type == 'stt':
-            # Device is telling us about STT state
+        elif msg_type == 'listen':
             state = msg.get('state', '')
-            if state == 'start':
+            text = msg.get('text', '')
+            logger.info(f"Listen event: state={state}, text={text}")
+            if state == 'detect':
+                # Wake word detected, start listening
+                self.audio_buffer = bytearray()
+                self.is_listening = True
+                logger.info("Wake word detected, listening started")
+            elif state == 'start':
                 self.audio_buffer = bytearray()
                 self.is_listening = True
                 logger.info("Listening started")
             elif state == 'stop':
                 self.is_listening = False
                 logger.info(f"Listening stopped, buffer size: {len(self.audio_buffer)}")
-                # Process the audio
+                await self.process_audio()
+        elif msg_type == 'stt':
+            state = msg.get('state', '')
+            if state == 'start':
+                self.audio_buffer = bytearray()
+                self.is_listening = True
+            elif state == 'stop':
+                self.is_listening = False
                 await self.process_audio()
         elif msg_type == 'abort':
             logger.info("Abort received")
