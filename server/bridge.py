@@ -168,21 +168,68 @@ class DeviceSession:
             logger.error(f"AI error: {e}")
             return None
     
+    async def _wait_and_process(self):
+        """Wait for silence then process audio"""
+        await asyncio.sleep(1.5)  # Wait 1.5s of silence
+        current_time = asyncio.get_event_loop().time()
+        if current_time - self.last_audio_time >= 1.4:
+            # Silence detected, process
+            if self.audio_buffer:
+                logger.info(f"Silence detected, processing {len(self.audio_buffer)} bytes")
+                await self.process_audio()
+
+    async def process_audio(self):
+        """Transcribe audio and get AI response"""
+        if not self.audio_buffer:
+            return
+        
+        audio_data = bytes(self.audio_buffer)
+        self.audio_buffer = bytearray()
+        
+        # Send STT start
+        await self.ws.send_str(json.dumps({'type': 'stt', 'state': 'start'}))
+        
+        # Step 1: STT
+        transcript = await self.transcribe(audio_data)
+        if not transcript:
+            transcript = '你好'
+            logger.warning("STT failed, using fallback")
+        
+        # Send STT result
+        await self.ws.send_str(json.dumps({'type': 'stt', 'state': 'stop', 'text': transcript}))
+        logger.info(f"Transcribed: {transcript}")
+        
+        # Step 2: Get AI response
+        self.conversation_history.append({'role': 'user', 'content': transcript})
+        response = await self.get_ai_response(transcript)
+        if not response:
+            response = '抱歉，我没听清'
+        self.conversation_history.append({'role': 'assistant', 'content': response})
+        logger.info(f"AI response: {response}")
+        
+        # Step 3: Send TTS
+        await self.send_tts_message(response)
+
     async def send_tts_message(self, text):
         """Send text response to device for TTS playback"""
-        msg = {
+        # Send TTS sentence start
+        await self.ws.send_str(json.dumps({
             'type': 'tts',
-            'state': 'start',
+            'state': 'sentence_start',
             'text': text
-        }
-        await self.ws.send_str(json.dumps(msg))
+        }))
         
-        # Signal end of TTS
-        end_msg = {
+        # Send TTS sentence end  
+        await self.ws.send_str(json.dumps({
+            'type': 'tts',
+            'state': 'sentence_end'
+        }))
+        
+        # Send TTS stop
+        await self.ws.send_str(json.dumps({
             'type': 'tts',
             'state': 'stop'
-        }
-        await self.ws.send_str(json.dumps(end_msg))
+        }))
 
 
 async def websocket_handler(request):
