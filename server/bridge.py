@@ -172,15 +172,13 @@ class DeviceSession:
             logger.error(f"AI error: {e}")
             return None
     
-    async def _wait_and_process(self):
+    async def _check_silence(self):
         """Wait for silence then process audio"""
-        await asyncio.sleep(1.5)  # Wait 1.5s of silence
-        current_time = asyncio.get_event_loop().time()
-        if current_time - self.last_audio_time >= 1.4:
-            # Silence detected, process
-            if self.audio_buffer:
-                logger.info(f"Silence detected, processing {len(self.audio_buffer)} bytes")
-                await self.process_audio()
+        await asyncio.sleep(2.0)
+        # If no new audio in the last 1.8 seconds, consider speech ended
+        if time.time() - self.last_audio_time >= 1.8 and self.audio_buffer:
+            logger.info(f"Silence detected, processing {len(self.audio_buffer)} bytes of audio")
+            await self.process_audio()
 
     async def process_audio(self):
         """Transcribe audio and get AI response"""
@@ -189,29 +187,33 @@ class DeviceSession:
         
         audio_data = bytes(self.audio_buffer)
         self.audio_buffer = bytearray()
+        self.is_listening = False
         
-        # Send STT start
-        await self.ws.send_str(json.dumps({'type': 'stt', 'state': 'start'}))
+        logger.info(f"Processing {len(audio_data)} bytes of audio")
         
-        # Step 1: STT
+        # Step 1: STT - transcribe audio
         transcript = await self.transcribe(audio_data)
         if not transcript:
-            transcript = '你好'
             logger.warning("STT failed, using fallback")
+            transcript = '你好'
         
-        # Send STT result
-        await self.ws.send_str(json.dumps({'type': 'stt', 'state': 'stop', 'text': transcript}))
         logger.info(f"Transcribed: {transcript}")
+        
+        # Send STT result to device
+        await self.ws.send_str(json.dumps({
+            'type': 'stt',
+            'text': transcript
+        }))
         
         # Step 2: Get AI response
         self.conversation_history.append({'role': 'user', 'content': transcript})
         response = await self.get_ai_response(transcript)
         if not response:
-            response = '抱歉，我没听清'
+            response = '你好呀'
         self.conversation_history.append({'role': 'assistant', 'content': response})
         logger.info(f"AI response: {response}")
         
-        # Step 3: Send TTS
+        # Step 3: Send TTS response
         await self.send_tts_message(response)
 
     async def send_tts_message(self, text):
