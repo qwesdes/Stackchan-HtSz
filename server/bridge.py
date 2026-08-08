@@ -195,9 +195,32 @@ async def websocket_handler(request):
     return ws
 
 
+async def ota_handler(request):
+    """Handle OTA check - return websocket URL and version info"""
+    server_ip = os.getenv('SERVER_IP', '101.200.241.96')
+    port = os.getenv('PORT', '8003')
+    response = {
+        'server_time': {
+            'timestamp': int(asyncio.get_event_loop().time()),
+            'timezone_offset': 480
+        },
+        'firmware': {
+            'version': '2.2.6',
+            'url': ''
+        },
+        'websocket': {
+            'url': f'ws://{server_ip}:{port}/xiaozhi/v1/',
+            'token': ''
+        }
+    }
+    return web.json_response(response)
+
+
 def create_app():
     app = web.Application()
     app.router.add_get('/xiaozhi/v1/', websocket_handler)
+    app.router.add_get('/xiaozhi/ota/', ota_handler)
+    app.router.add_post('/xiaozhi/ota/', ota_handler)
     return app
 
 
