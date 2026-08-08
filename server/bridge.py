@@ -175,6 +175,19 @@ class DeviceSession:
             logger.error(f"AI error: {e}")
             return None
     
+    async def respond_to_input(self, text):
+        """Respond to touch or voice input"""
+        try:
+            self.conversation_history.append({'role': 'user', 'content': text})
+            response = await self.get_ai_response(text)
+            if not response:
+                response = '嗯~'
+            self.conversation_history.append({'role': 'assistant', 'content': response})
+            logger.info(f"AI response: {response}")
+            await self.send_tts_message(response)
+        except Exception as e:
+            logger.error(f"respond_to_input error: {e}")
+
     async def _check_silence(self):
         """Wait for silence then process audio"""
         await asyncio.sleep(2.0)
