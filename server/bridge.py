@@ -233,25 +233,77 @@ class DeviceSession:
         await self.send_tts_message(response)
 
     async def send_tts_message(self, text):
-        """Send text response to device for TTS playback"""
-        # Send TTS sentence start
-        await self.ws.send_str(json.dumps({
-            'type': 'tts',
-            'state': 'sentence_start',
-            'text': text
-        }))
+        """Generate TTS audio and send to device as opus frames"""
+        import subprocess
+        import tempfile
         
-        # Send TTS sentence end  
-        await self.ws.send_str(json.dumps({
-            'type': 'tts',
-            'state': 'sentence_end'
-        }))
-        
-        # Send TTS stop
-        await self.ws.send_str(json.dumps({
-            'type': 'tts',
-            'state': 'stop'
-        }))
+        try:
+            # Step 1: Generate audio with edge-tts
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
+                mp3_path = f.name
+            
+            edge_tts_bin = '/root/.espressif/python_env/idf5.5_py3.11_env/bin/edge-tts'
+            proc = await asyncio.create_subprocess_exec(
+                edge_tts_bin, '--text', text[:200], '--voice', 'zh-CN-YunxiNeural',
+                '--write-media', mp3_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            await proc.wait()
+            
+            if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
+                logger.error("TTS generation failed")
+                return
+            
+            # Step 2: Convert to opus using ffmpeg
+            with tempfile.NamedTemporaryFile(suffix='.opus', delete=False) as f:
+                opus_path = f.name
+            
+            proc = await asyncio.create_subprocess_exec(
+                'ffmpeg', '-y', '-i', mp3_path,
+                '-ar', '24000', '-ac', '1',
+                '-c:a', 'libopus', '-b:a', '32k',
+                '-frame_duration', '60',
+                '-vbr', 'off',
+                opus_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL
+            )
+            await proc.wait()
+            
+            # Step 3: Send TTS start
+            await self.ws.send_str(json.dumps({
+                'type': 'tts',
+                'state': 'start'
+            }))
+            
+            # Step 4: Read opus file and send as binary frames
+            # For opus in ogg container, we need to extract raw frames
+            # Simpler: send the raw opus file content in chunks
+            with open(opus_path, 'rb') as f:
+                opus_data = f.read()
+            
+            # Send in chunks matching frame size
+            chunk_size = 960  # ~60ms at 24kHz
+            for i in range(0, len(opus_data), chunk_size):
+                chunk = opus_data[i:i+chunk_size]
+                await self.ws.send_bytes(chunk)
+                await asyncio.sleep(0.02)  # Small delay between frames
+            
+            # Step 5: Send TTS stop
+            await self.ws.send_str(json.dumps({
+                'type': 'tts',
+                'state': 'stop'
+            }))
+            
+            logger.info(f"TTS sent: {len(opus_data)} bytes")
+            
+            # Cleanup
+            os.unlink(mp3_path)
+            os.unlink(opus_path)
+            
+        except Exception as e:
+            logger.error(f"TTS error: {e}")
 
 
 async def websocket_handler(request):
