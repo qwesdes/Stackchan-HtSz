@@ -72,11 +72,14 @@ class DeviceSession:
             text = msg.get('text', '')
             logger.info(f"Listen event: state={state}, text={text}")
             if state == 'detect':
-                # Wake word detected, just acknowledge internally
+                # Use touch event text as input directly
                 self.audio_buffer = bytearray()
                 self.is_listening = True
-                self.last_audio_time = asyncio.get_event_loop().time()
+                self.last_audio_time = time.time()
                 logger.info(f"Wake word detected: {text}")
+                # Respond to the touch interaction
+                if text:
+                    asyncio.create_task(self.respond_to_input(text))
             elif state == 'start':
                 self.audio_buffer = bytearray()
                 self.is_listening = True
