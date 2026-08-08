@@ -54,11 +54,12 @@ class DeviceSession:
     async def handle_audio(self, data):
         """Buffer incoming audio data and auto-process after silence"""
         self.audio_buffer.extend(data)
-        self.last_audio_time = asyncio.get_event_loop().time()
+        self.last_audio_time = time.time()
         
-        # Start a timer to process after silence
-        if not hasattr(self, '_audio_task') or self._audio_task is None or self._audio_task.done():
-            self._audio_task = asyncio.create_task(self._wait_and_process())
+        # Cancel previous silence timer and start a new one
+        if self._silence_task and not self._silence_task.done():
+            self._silence_task.cancel()
+        self._silence_task = asyncio.create_task(self._check_silence())
     
     async def handle_text_message(self, msg):
         """Handle JSON text messages from device"""
