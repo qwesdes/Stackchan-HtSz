@@ -69,10 +69,17 @@ class DeviceSession:
             text = msg.get('text', '')
             logger.info(f"Listen event: state={state}, text={text}")
             if state == 'detect':
-                # Wake word detected, start listening
+                # Wake word detected, confirm and enable recording
                 self.audio_buffer = bytearray()
                 self.is_listening = True
-                logger.info("Wake word detected, listening started")
+                self.last_audio_time = asyncio.get_event_loop().time()
+                logger.info("Wake word detected, sending confirmation")
+                # Tell device to start recording
+                await self.ws.send_str(json.dumps({
+                    'type': 'listen',
+                    'state': 'start',
+                    'mode': 'auto'
+                }))
             elif state == 'start':
                 self.audio_buffer = bytearray()
                 self.is_listening = True
