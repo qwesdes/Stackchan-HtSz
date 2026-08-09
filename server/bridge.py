@@ -382,6 +382,69 @@ async def ota_handler(request):
     return web.json_response(response)
 
 
+async def read_email_handler(request):
+    """Read emails from 163 IMAP inbox"""
+    import imaplib
+    import email
+    from email.header import decode_header
+    
+    try:
+        count = int(request.query.get('count', '5'))
+        
+        mail = imaplib.IMAP4_SSL('imap.163.com')
+        mail.login('evanluchen26@163.com', 'TJ3kzAZDgyKrszfn')
+        mail.select('INBOX')
+        
+        _, msg_nums = mail.search(None, 'ALL')
+        msg_list = msg_nums[0].split()
+        
+        # Get latest emails
+        results = []
+        for num in msg_list[-count:]:
+            _, msg_data = mail.fetch(num, '(RFC822)')
+            raw = msg_data[0][1]
+            msg = email.message_from_bytes(raw)
+            
+            # Decode subject
+            subject = ''
+            if msg['Subject']:
+                decoded = decode_header(msg['Subject'])
+                for part, enc in decoded:
+                    if isinstance(part, bytes):
+                        subject += part.decode(enc or 'utf-8', errors='ignore')
+                    else:
+                        subject += part
+            
+            # Decode from
+            from_addr = msg['From'] or ''
+            
+            # Get body
+            body = ''
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == 'text/plain':
+                        payload = part.get_payload(decode=True)
+                        charset = part.get_content_charset() or 'utf-8'
+                        body = payload.decode(charset, errors='ignore')
+                        break
+            else:
+                payload = msg.get_payload(decode=True)
+                charset = msg.get_content_charset() or 'utf-8'
+                body = payload.decode(charset, errors='ignore') if payload else ''
+            
+            results.append({
+                'from': from_addr,
+                'subject': subject,
+                'body': body[:500],
+                'date': msg['Date'] or ''
+            })
+        
+        mail.logout()
+        return web.json_response({'emails': results[::-1]})
+    except Exception as e:
+        return web.json_response({'error': str(e)}, status=500)
+
+
 async def send_email_handler(request):
     """Send email via 163 SMTP"""
     import smtplib
