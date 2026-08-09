@@ -184,6 +184,7 @@ class DeviceSession:
     async def respond_to_input(self, text):
         """Respond to touch or voice input"""
         try:
+            self._responded_via_detect = True
             self.conversation_history.append({'role': 'user', 'content': text})
             response = await self.get_ai_response(text)
             if not response:
