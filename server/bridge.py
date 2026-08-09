@@ -156,7 +156,7 @@ class DeviceSession:
                 async with session.post(
                     API_URL,
                     json={
-                        'model': 'claude-sonnet-4-20250514',
+                        'model': os.getenv('MODEL', 'qwen-plus'),
                         'messages': messages,
                         'max_tokens': 500
                     },
