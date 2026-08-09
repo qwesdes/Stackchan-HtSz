@@ -197,6 +197,11 @@ class DeviceSession:
     async def _check_silence(self):
         """Wait for silence then process audio"""
         await asyncio.sleep(2.0)
+        # Skip if already responded via touch detect
+        if hasattr(self, '_responded_via_detect') and self._responded_via_detect:
+            self._responded_via_detect = False
+            self.audio_buffer = bytearray()
+            return
         # If no new audio in the last 1.8 seconds, consider speech ended
         if time.time() - self.last_audio_time >= 1.8 and self.audio_buffer:
             logger.info(f"Silence detected, processing {len(self.audio_buffer)} bytes of audio")
