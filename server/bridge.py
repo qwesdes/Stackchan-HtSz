@@ -72,10 +72,16 @@ class DeviceSession:
             text = msg.get('text', '')
             logger.info(f"Listen event: state={state}, text={text}")
             if state == 'detect':
-                # Use touch event text as input directly
+                # Debounce: ignore repeated detect within 3 seconds
+                now = time.time()
+                if hasattr(self, '_last_detect_time') and now - self._last_detect_time < 3:
+                    logger.info(f"Debounce: skipping repeated detect")
+                    return
+                self._last_detect_time = now
+                
                 self.audio_buffer = bytearray()
                 self.is_listening = True
-                self.last_audio_time = time.time()
+                self.last_audio_time = now
                 logger.info(f"Wake word detected: {text}")
                 # Respond to the touch interaction
                 if text:
