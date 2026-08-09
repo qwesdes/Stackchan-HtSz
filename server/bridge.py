@@ -370,11 +370,41 @@ async def ota_handler(request):
     return web.json_response(response)
 
 
+async def send_email_handler(request):
+    """Send email via 163 SMTP"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    try:
+        data = await request.json()
+        to_addr = data.get('to', '')
+        subject = data.get('subject', '')
+        body = data.get('body', '')
+        
+        if not to_addr or not body:
+            return web.json_response({'error': 'Missing to or body'}, status=400)
+        
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From'] = 'evanluchen26@163.com'
+        msg['To'] = to_addr
+        
+        with smtplib.SMTP_SSL('smtp.163.com', 465) as s:
+            s.login('evanluchen26@163.com', 'TJ3kzAZDgyKrszfn')
+            s.send_message(msg)
+        
+        return web.json_response({'status': 'sent', 'to': to_addr, 'subject': subject})
+    except Exception as e:
+        return web.json_response({'error': str(e)}, status=500)
+
+
 def create_app():
     app = web.Application()
     app.router.add_get('/xiaozhi/v1/', websocket_handler)
     app.router.add_get('/xiaozhi/ota/', ota_handler)
     app.router.add_post('/xiaozhi/ota/', ota_handler)
+    app.router.add_post('/send-email', send_email_handler)
     return app
 
 
