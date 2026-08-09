@@ -492,6 +492,7 @@ def create_app():
     app.router.add_get('/xiaozhi/ota/', ota_handler)
     app.router.add_post('/xiaozhi/ota/', ota_handler)
     app.router.add_post('/send-email', send_email_handler)
+    app.router.add_get('/read-email', read_email_handler)
     return app
 
 
