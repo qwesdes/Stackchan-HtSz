@@ -303,7 +303,7 @@ class DeviceSession:
                 opus_frame = encoder.encode(frame, frame_size)
                 await self.ws.send_bytes(opus_frame)
                 total_sent += len(opus_frame)
-                await asyncio.sleep(0.01)  # Small delay to prevent overwhelming
+                await asyncio.sleep(0.02)  # Increased delay for device decode timing
             
             # Send TTS stop
             await self.ws.send_str(json.dumps({
