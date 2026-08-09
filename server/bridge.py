@@ -399,8 +399,20 @@ async def send_email_handler(request):
         return web.json_response({'error': str(e)}, status=500)
 
 
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == 'OPTIONS':
+        response = web.Response()
+    else:
+        response = await handler(request)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+
 def create_app():
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
     app.router.add_get('/xiaozhi/v1/', websocket_handler)
     app.router.add_get('/xiaozhi/ota/', ota_handler)
     app.router.add_post('/xiaozhi/ota/', ota_handler)
