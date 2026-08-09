@@ -383,64 +383,67 @@ async def ota_handler(request):
 
 
 async def read_email_handler(request):
-    """Read emails from 163 IMAP inbox"""
-    import imaplib
+    """Read emails from 163 IMAP inbox using imapclient"""
+    from imapclient import IMAPClient
     import email
     from email.header import decode_header
     
     try:
         count = int(request.query.get('count', '5'))
         
-        mail = imaplib.IMAP4_SSL('imap.163.com')
-        mail.login('evanluchen26@163.com', 'TJ3kzAZDgyKrszfn')
-        mail.select('INBOX')
+        client = IMAPClient('imap.163.com', port=993, use_uid=True, ssl=True)
+        client.login('evanluchen26@163.com', 'VKiN9WZUAse8zEfg')
+        client.id_({'name': 'LuChenMail', 'version': '1.0'})
+        client.select_folder('INBOX')
         
-        _, msg_nums = mail.search(None, 'ALL')
-        msg_list = msg_nums[0].split()
+        msg_ids = client.search(['ALL'])
         
         # Get latest emails
         results = []
-        for num in msg_list[-count:]:
-            _, msg_data = mail.fetch(num, '(RFC822)')
-            raw = msg_data[0][1]
-            msg = email.message_from_bytes(raw)
-            
-            # Decode subject
-            subject = ''
-            if msg['Subject']:
-                decoded = decode_header(msg['Subject'])
-                for part, enc in decoded:
-                    if isinstance(part, bytes):
-                        subject += part.decode(enc or 'utf-8', errors='ignore')
-                    else:
-                        subject += part
-            
-            # Decode from
-            from_addr = msg['From'] or ''
-            
-            # Get body
-            body = ''
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_type() == 'text/plain':
-                        payload = part.get_payload(decode=True)
-                        charset = part.get_content_charset() or 'utf-8'
-                        body = payload.decode(charset, errors='ignore')
-                        break
-            else:
-                payload = msg.get_payload(decode=True)
-                charset = msg.get_content_charset() or 'utf-8'
-                body = payload.decode(charset, errors='ignore') if payload else ''
-            
-            results.append({
-                'from': from_addr,
-                'subject': subject,
-                'body': body[:500],
-                'date': msg['Date'] or ''
-            })
+        latest_ids = msg_ids[-count:] if len(msg_ids) > count else msg_ids
         
-        mail.logout()
-        return web.json_response({'emails': results[::-1]})
+        if latest_ids:
+            raw_messages = client.fetch(latest_ids, ['RFC822'])
+            for uid in sorted(latest_ids, reverse=True):
+                raw = raw_messages[uid][b'RFC822']
+                msg = email.message_from_bytes(raw)
+                
+                # Decode subject
+                subject = ''
+                if msg['Subject']:
+                    decoded = decode_header(msg['Subject'])
+                    for part, enc in decoded:
+                        if isinstance(part, bytes):
+                            subject += part.decode(enc or 'utf-8', errors='ignore')
+                        else:
+                            subject += part
+                
+                # Decode from
+                from_addr = msg['From'] or ''
+                
+                # Get body
+                body = ''
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == 'text/plain':
+                            payload = part.get_payload(decode=True)
+                            charset = part.get_content_charset() or 'utf-8'
+                            body = payload.decode(charset, errors='ignore')
+                            break
+                else:
+                    payload = msg.get_payload(decode=True)
+                    charset = msg.get_content_charset() or 'utf-8'
+                    body = payload.decode(charset, errors='ignore') if payload else ''
+                
+                results.append({
+                    'from': from_addr,
+                    'subject': subject,
+                    'body': body[:500],
+                    'date': msg['Date'] or ''
+                })
+        
+        client.logout()
+        return web.json_response({'emails': results})
     except Exception as e:
         return web.json_response({'error': str(e)}, status=500)
 
